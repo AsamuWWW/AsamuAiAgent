@@ -43,8 +43,9 @@ public class AgentSession {
 
     public synchronized void completeStep(String stepText) {
         for (int i = 0; i < todos.size(); i++) {
-            if (todos.get(i).contains("[ ]")) {
-                todos.set(i, todos.get(i).replace("[ ]", "[x]") + " -> " + stepText);
+            String todo = todos.get(i);
+            if (todo.contains("[ ]")) {
+                todos.set(i, todo.replace("[ ]", "[x]") + " -> " + stepText);
                 return;
             }
         }

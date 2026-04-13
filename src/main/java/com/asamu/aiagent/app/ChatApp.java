@@ -26,8 +26,8 @@ public class ChatApp {
     }
 
     public String chat(String sessionId, String message) {
-        String sid = ensureSessionId(sessionId);
-        ConcurrentLinkedDeque<String> messages = memory.computeIfAbsent(sid, k -> new ConcurrentLinkedDeque<>());
+        String resolvedSessionId = ensureSessionId(sessionId);
+        ConcurrentLinkedDeque<String> messages = memory.computeIfAbsent(resolvedSessionId, k -> new ConcurrentLinkedDeque<>());
         messages.addLast("user:" + message);
         while (messages.size() > MAX_HISTORY_MESSAGES) {
             messages.removeFirst();

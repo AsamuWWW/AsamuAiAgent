@@ -42,6 +42,17 @@ class AsamuAiAgentApplicationTests {
     }
 
     @Test
+    void chatShouldKeepGivenSessionId() throws Exception {
+        String sessionId = "session-fixed-id";
+        String body = objectMapper.writeValueAsString(new Request(sessionId, "继续对话"));
+        mockMvc.perform(post("/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sessionId").value(sessionId));
+    }
+
+    @Test
     void agentShouldStartAndResume() throws Exception {
         String startBody = objectMapper.writeValueAsString(new TaskRequest("整理技术调研结论"));
         String startResult = mockMvc.perform(post("/agent/start")
