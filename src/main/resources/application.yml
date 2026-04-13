@@ -28,7 +28,7 @@ asamu:
       api-key: ""
     tool:
       default-role: user
-      file-read-base-path: /home/runner/work/AsamuAiAgent/AsamuAiAgent
+      file-read-base-path: ${user.dir}
       whitelist:
         - time.now
         - http.get

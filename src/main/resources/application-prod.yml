@@ -1,4 +1,4 @@
 asamu:
   ai:
     security:
-      api-key: "please-change-this"
+      api-key: ${ASAMU_AI_API_KEY:}

@@ -151,7 +151,7 @@ public class AgentProperties {
 
     public static class Tool {
         private String defaultRole = "user";
-        private String fileReadBasePath = "/home/runner/work/AsamuAiAgent/AsamuAiAgent";
+        private String fileReadBasePath = System.getProperty("user.dir");
         private List<String> whitelist = new ArrayList<>(List.of("time.now", "http.get", "file.read"));
 
         public String getDefaultRole() {

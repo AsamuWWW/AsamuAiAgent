@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 public class ToolRegistry {
 
     private static final int LOG_LIMIT = 20;
+    private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final AgentProperties properties;
     private final Map<String, ToolDefinition> tools = new ConcurrentHashMap<>();
@@ -91,7 +92,7 @@ public class ToolRegistry {
 
     private void recordLog(ToolCallRequest request, boolean success, String detail, long duration, int attempts) {
         ConcurrentLinkedDeque<ToolExecutionLog> sessionLogs = logs.computeIfAbsent(request.sessionId(), key -> new ConcurrentLinkedDeque<>());
-        sessionLogs.addLast(new ToolExecutionLog(request.name(), request.role(), success, detail, duration, attempts, OffsetDateTime.now(ZoneId.of("Asia/Shanghai"))));
+        sessionLogs.addLast(new ToolExecutionLog(request.name(), request.role(), success, detail, duration, attempts, OffsetDateTime.now(DEFAULT_ZONE_ID)));
         while (sessionLogs.size() > LOG_LIMIT) {
             sessionLogs.pollFirst();
         }
@@ -104,7 +105,7 @@ public class ToolRegistry {
                 Set.of("user", "admin"),
                 1000,
                 0,
-                req -> OffsetDateTime.now(ZoneId.of("Asia/Shanghai")).toString()
+                req -> OffsetDateTime.now(DEFAULT_ZONE_ID).toString()
         ));
 
         tools.put("http.get", new ToolDefinition(
@@ -135,8 +136,10 @@ public class ToolRegistry {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             String body = response.body() == null ? "" : response.body();
             return "status=" + response.statusCode() + ", body=" + body.substring(0, Math.min(300, body.length()));
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new RuntimeException("http.get interrupted", e);
+        } catch (IOException e) {
             throw new RuntimeException("http.get failed", e);
         }
     }

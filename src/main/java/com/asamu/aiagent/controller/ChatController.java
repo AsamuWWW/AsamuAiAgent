@@ -69,9 +69,7 @@ public class ChatController {
                 emitter.send(SseEmitter.event().name(String.valueOf(event.get("type"))).data(event.get("payload")));
             }
             emitter.complete();
-        } catch (IOException e) {
-            sendErrorEvent(emitter, e.getMessage());
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             sendErrorEvent(emitter, e.getMessage());
         }
     }

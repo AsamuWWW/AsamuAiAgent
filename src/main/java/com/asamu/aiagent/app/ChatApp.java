@@ -93,7 +93,7 @@ public class ChatApp {
         context.addAll(citations.stream().map(KnowledgeCitation::snippet).toList());
 
         LlmResponse llm = llmService.chat(provider, model, temperature, resolvedSessionId, resolvedUserId, message, context);
-        String reply = llm.text() + "（会话记忆条数: " + context.size() + "）";
+        String reply = llm.text();
         memoryService.append(resolvedUserId, resolvedSessionId, "assistant", reply);
 
         return new ChatTurnResult(

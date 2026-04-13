@@ -94,10 +94,17 @@ public class AgentSession {
 
     private AgentStep currentStep() {
         for (AgentStep step : steps) {
-            if (step.getStatus() == AgentStepStatus.PENDING || step.getStatus() == AgentStepStatus.RUNNING || step.getStatus() == AgentStepStatus.WAITING || step.getStatus() == AgentStepStatus.FAILED) {
+            if (isActiveStatus(step.getStatus())) {
                 return step;
             }
         }
         return null;
+    }
+
+    private boolean isActiveStatus(AgentStepStatus status) {
+        return status == AgentStepStatus.PENDING
+                || status == AgentStepStatus.RUNNING
+                || status == AgentStepStatus.WAITING
+                || status == AgentStepStatus.FAILED;
     }
 }
