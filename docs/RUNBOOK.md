@@ -12,6 +12,7 @@ mvn spring-boot:run
 - `POST /chat`
 - `POST /chat/stream`
 - `POST /chat/structured`
+- `POST /chat/multimodal`
 - `POST /agent/start`
 - `POST /agent/{taskId}/resume`
 - `GET /agent/{taskId}`
@@ -28,6 +29,11 @@ mvn spring-boot:run
 ## 安全
 - 通过 `asamu.ai.security.api-key` 启用 API Key 校验
 - 请求头：`X-API-Key: <value>`
+
+## MCP 集成
+- 在配置中开启：`asamu.ai.mcp.enabled=true`
+- 配置服务地址：`asamu.ai.mcp.servers.<name>=http://host/path`
+- 通过聊天命令触发：`/mcp <name> <payload>`
 
 ## OpenAPI
 - 稳定接口契约：`docs/openapi.yaml`

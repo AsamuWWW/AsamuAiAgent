@@ -1,12 +1,22 @@
 package com.asamu.aiagent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,6 +27,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class AsamuAiAgentApplicationTests {
+
+    private static HttpServer mcpServer;
+    private static int mcpServerPort;
+
+    @BeforeAll
+    static void setupMcpServer() {
+        try {
+            mcpServer = HttpServer.create(new InetSocketAddress(0), 0);
+            mcpServer.createContext("/tool", exchange -> {
+                byte[] response = "{\"ok\":true,\"result\":\"mock mcp result\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, response.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response);
+                }
+            });
+            mcpServer.start();
+            mcpServerPort = mcpServer.getAddress().getPort();
+        } catch (IOException e) {
+            throw new RuntimeException("failed to start mock MCP server", e);
+        }
+    }
+
+    @DynamicPropertySource
+    static void registerProperties(DynamicPropertyRegistry registry) {
+        if (mcpServer == null) {
+            setupMcpServer();
+        }
+        registry.add("asamu.ai.mcp.enabled", () -> "true");
+        registry.add("asamu.ai.mcp.servers.mock", () -> "http://127.0.0.1:" + mcpServerPort + "/tool");
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -182,6 +223,53 @@ class AsamuAiAgentApplicationTests {
                 .andExpect(header().string("X-Idempotent-Replay", "true"));
     }
 
+    @Test
+    void multimodalChatShouldReturnReply() throws Exception {
+        String body = objectMapper.writeValueAsString(new MultimodalReq(
+                "u4", "", null, null, null, "user", "请描述这张图片",
+                "https://example.com/image.png", null, "image/png"
+        ));
+        mockMvc.perform(post("/chat/multimodal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "false"))
+                .andExpect(jsonPath("$.data.reply").isNotEmpty())
+                .andExpect(jsonPath("$.data.imageSource").value("url"))
+                .andExpect(jsonPath("$.data.imageMimeType").value("image/png"));
+    }
+
+    @Test
+    void multimodalChatShouldRejectWhenImageMissing() throws Exception {
+        String body = objectMapper.writeValueAsString(new MultimodalReq(
+                "u4", "", null, null, null, "user", "请描述这张图片",
+                null, null, "image/png"
+        ));
+        mockMvc.perform(post("/chat/multimodal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40002));
+    }
+
+    @Test
+    void mcpCommandShouldInvokeMockServer() throws Exception {
+        String body = objectMapper.writeValueAsString(new ChatReq("u5", "", null, null, null, "user", "/mcp mock hello"));
+        mockMvc.perform(post("/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reply").exists())
+                .andExpect(jsonPath("$.data.toolLogs[0].tool").value("mcp.call"));
+    }
+
+    @AfterAll
+    static void stopMcpServer() {
+        if (mcpServer != null) {
+            mcpServer.stop(0);
+        }
+    }
+
     private record ChatReq(String userId, String sessionId, String provider, String model, Double temperature, String role, String message) {}
 
     private record TaskRequest(String userId, String task) {}
@@ -191,4 +279,17 @@ class AsamuAiAgentApplicationTests {
     private record IngestRequest(String namespace, String title, String content) {}
 
     private record QueryRequest(String namespace, String question, Integer topK) {}
+
+    private record MultimodalReq(
+            String userId,
+            String sessionId,
+            String provider,
+            String model,
+            Double temperature,
+            String role,
+            String message,
+            String imageUrl,
+            String imageBase64,
+            String imageMimeType
+    ) {}
 }

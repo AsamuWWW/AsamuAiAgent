@@ -59,6 +59,18 @@ paths:
               schema:
                 type: string
                 enum: ["true", "false"]
+  /chat/multimodal:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Chat response with image input (url/base64).
+          headers:
+            X-Idempotent-Replay:
+              schema:
+                type: string
+                enum: ["true", "false"]
   /agent/start:
     post:
       parameters:

@@ -33,5 +33,9 @@ asamu:
         - time.now
         - http.get
         - file.read
+        - mcp.call
+    mcp:
+      enabled: false
+      servers: {}
     api:
       idempotency-ttl-seconds: 600

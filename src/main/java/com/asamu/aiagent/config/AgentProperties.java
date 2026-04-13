@@ -16,6 +16,7 @@ public class AgentProperties {
     private final Memory memory = new Memory();
     private final Security security = new Security();
     private final Tool tool = new Tool();
+    private final Mcp mcp = new Mcp();
     private final Api api = new Api();
 
     public Model getModel() {
@@ -32,6 +33,10 @@ public class AgentProperties {
 
     public Tool getTool() {
         return tool;
+    }
+
+    public Mcp getMcp() {
+        return mcp;
     }
 
     public Api getApi() {
@@ -193,6 +198,23 @@ public class AgentProperties {
 
         public void setIdempotencyTtlSeconds(long idempotencyTtlSeconds) {
             this.idempotencyTtlSeconds = idempotencyTtlSeconds;
+        }
+    }
+
+    public static class Mcp {
+        private boolean enabled = false;
+        private final Map<String, String> servers = new HashMap<>();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Map<String, String> getServers() {
+            return servers;
         }
     }
 }

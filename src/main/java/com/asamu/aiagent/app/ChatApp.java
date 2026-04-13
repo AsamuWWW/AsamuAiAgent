@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 @Service
 public class ChatApp {
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{[\\s\\S]*}");
+    private static final int BASE64_PREVIEW_LENGTH = 64;
 
     private final ToolRegistry toolRegistry;
     private final LlmService llmService;
@@ -116,6 +117,21 @@ public class ChatApp {
         );
     }
 
+    public ChatTurnResult chatMultimodal(String userId,
+                                         String sessionId,
+                                         String provider,
+                                         String model,
+                                         Double temperature,
+                                         String role,
+                                         String message,
+                                         String imageUrl,
+                                         String imageBase64,
+                                         String imageMimeType) {
+        String imageHint = buildImageHint(imageUrl, imageBase64, imageMimeType);
+        String enhancedMessage = message + "\n\n[image]\n" + imageHint;
+        return chat(userId, sessionId, provider, model, temperature, role, enhancedMessage);
+    }
+
     public StructuredAnswer toStructuredAnswer(String userMessage,
                                                String assistantReply) {
         String json = extractJsonObject(assistantReply);
@@ -175,6 +191,19 @@ public class ChatApp {
             String path = text.substring(6).trim();
             return toolRegistry.invoke(new ToolCallRequest(sessionId, "file.read", role, Map.of("path", path)));
         }
+        if (text.startsWith("/mcp ")) {
+            String args = text.substring(5).trim();
+            int split = args.indexOf(' ');
+            if (split <= 0 || split == args.length() - 1) {
+                throw new IllegalArgumentException("Invalid MCP command format. Usage: /mcp <server> <payload>. Example: /mcp mock hello");
+            }
+            String server = args.substring(0, split).trim();
+            String payload = args.substring(split + 1).trim();
+            return toolRegistry.invoke(new ToolCallRequest(sessionId, "mcp.call", role, Map.of(
+                    "server", server,
+                    "payload", payload
+            )));
+        }
         return null;
     }
 
@@ -183,6 +212,20 @@ public class ChatApp {
         map.put("type", type);
         map.put("payload", payload);
         return map;
+    }
+
+    private String buildImageHint(String imageUrl, String imageBase64, String imageMimeType) {
+        String mime = (imageMimeType == null || imageMimeType.isBlank()) ? "image/jpeg" : imageMimeType;
+        boolean hasUrl = imageUrl != null && !imageUrl.isBlank();
+        boolean hasBase64 = imageBase64 != null && !imageBase64.isBlank();
+        if (!hasUrl && !hasBase64) {
+            throw new IllegalArgumentException("imageUrl or imageBase64 must be provided");
+        }
+        if (hasUrl) {
+            return "type=url, mime=" + mime + ", value=" + imageUrl.trim();
+        }
+        String base64Preview = imageBase64.substring(0, Math.min(imageBase64.length(), BASE64_PREVIEW_LENGTH));
+        return "type=base64, mime=" + mime + ", value_prefix=" + base64Preview;
     }
 
     private StructuredAnswer fallbackStructuredAnswer(String userMessage, String assistantReply) {

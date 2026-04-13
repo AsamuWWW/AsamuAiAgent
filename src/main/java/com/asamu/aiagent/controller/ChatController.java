@@ -6,6 +6,8 @@ import com.asamu.aiagent.common.ApiResponse;
 import com.asamu.aiagent.dto.ChatRequest;
 import com.asamu.aiagent.dto.ChatResponse;
 import com.asamu.aiagent.dto.ChatStructuredResponse;
+import com.asamu.aiagent.dto.MultimodalChatRequest;
+import com.asamu.aiagent.dto.MultimodalChatResponse;
 import com.asamu.aiagent.idempotency.IdempotencyResult;
 import com.asamu.aiagent.idempotency.IdempotencyService;
 import jakarta.validation.Valid;
@@ -70,6 +72,47 @@ public class ChatController {
                             turnResult.model(),
                             turnResult.reply(),
                             chatApp.toStructuredAnswer(request.message(), turnResult.reply()),
+                            turnResult.citations()
+                    );
+                    return ApiResponse.ok(response);
+                }
+        );
+        return withIdempotencyHeaders(result);
+    }
+
+    @PostMapping("/chat/multimodal")
+    public ResponseEntity<ApiResponse<MultimodalChatResponse>> multimodalChat(
+            @Valid @RequestBody MultimodalChatRequest request,
+            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey
+    ) {
+        IdempotencyResult<ApiResponse<MultimodalChatResponse>> result = idempotencyService.execute(
+                "POST:/chat/multimodal",
+                idempotencyKey,
+                request,
+                () -> {
+                    ChatTurnResult turnResult = chatApp.chatMultimodal(
+                            request.userId(),
+                            request.sessionId(),
+                            request.provider(),
+                            request.model(),
+                            request.temperature(),
+                            request.role(),
+                            request.message(),
+                            request.imageUrl(),
+                            request.imageBase64(),
+                            request.imageMimeType()
+                    );
+                    String source = (request.imageUrl() != null && !request.imageUrl().isBlank()) ? "url" : "base64";
+                    String mimeType = (request.imageMimeType() == null || request.imageMimeType().isBlank()) ? "image/jpeg" : request.imageMimeType();
+                    MultimodalChatResponse response = new MultimodalChatResponse(
+                            turnResult.userId(),
+                            turnResult.sessionId(),
+                            turnResult.provider(),
+                            turnResult.model(),
+                            turnResult.reply(),
+                            source,
+                            mimeType,
+                            turnResult.toolLogs(),
                             turnResult.citations()
                     );
                     return ApiResponse.ok(response);
