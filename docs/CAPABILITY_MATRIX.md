@@ -2,7 +2,7 @@
 
 | 领域 | Must Have（本轮已实现） | Optional（后续增强） | Not Now |
 |---|---|---|---|
-| 对话 | 同步 chat / SSE chat，模型路由参数 | 结构化输出、多模态 | 复杂函数调用协议兼容 |
+| 对话 | 同步 chat / SSE chat，结构化输出，模型路由参数 | 多模态 | 复杂函数调用协议兼容 |
 | 模型层 | Provider 抽象（openai-compatible/local）+ 配置化超时重试 | 真实外部模型接入 | 自动模型评测路由 |
 | 工具系统 | time/http/file.read，参数校验、权限、超时重试、日志 | Tool marketplace | 任意系统命令执行 |
 | Agent | 步骤状态机、任务查询、失败重试、等待用户输入 | 自动任务拆解优化 | 图形化流程编排 |

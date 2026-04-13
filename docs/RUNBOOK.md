@@ -11,6 +11,7 @@ mvn spring-boot:run
 ## 关键接口
 - `POST /chat`
 - `POST /chat/stream`
+- `POST /chat/structured`
 - `POST /agent/start`
 - `POST /agent/{taskId}/resume`
 - `GET /agent/{taskId}`

@@ -5,6 +5,7 @@ import com.asamu.aiagent.app.ChatTurnResult;
 import com.asamu.aiagent.common.ApiResponse;
 import com.asamu.aiagent.dto.ChatRequest;
 import com.asamu.aiagent.dto.ChatResponse;
+import com.asamu.aiagent.dto.ChatStructuredResponse;
 import com.asamu.aiagent.idempotency.IdempotencyResult;
 import com.asamu.aiagent.idempotency.IdempotencyService;
 import jakarta.validation.Valid;
@@ -51,6 +52,32 @@ public class ChatController {
         return withIdempotencyHeaders(result);
     }
 
+    @PostMapping("/chat/structured")
+    public ResponseEntity<ApiResponse<ChatStructuredResponse>> structuredChat(
+            @Valid @RequestBody ChatRequest request,
+            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey
+    ) {
+        IdempotencyResult<ApiResponse<ChatStructuredResponse>> result = idempotencyService.execute(
+                "POST:/chat/structured",
+                idempotencyKey,
+                request,
+                () -> {
+                    ChatTurnResult turnResult = executeTurn(request);
+                    ChatStructuredResponse response = new ChatStructuredResponse(
+                            turnResult.userId(),
+                            turnResult.sessionId(),
+                            turnResult.provider(),
+                            turnResult.model(),
+                            turnResult.reply(),
+                            chatApp.toStructuredAnswer(request.message(), turnResult.reply()),
+                            turnResult.citations()
+                    );
+                    return ApiResponse.ok(response);
+                }
+        );
+        return withIdempotencyHeaders(result);
+    }
+
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@Valid @RequestBody ChatRequest request) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
@@ -82,7 +109,7 @@ public class ChatController {
         );
     }
 
-    private ResponseEntity<ApiResponse<ChatResponse>> withIdempotencyHeaders(IdempotencyResult<ApiResponse<ChatResponse>> result) {
+    private <T> ResponseEntity<ApiResponse<T>> withIdempotencyHeaders(IdempotencyResult<ApiResponse<T>> result) {
         HttpHeaders headers = new HttpHeaders();
         headers.set(IDEMPOTENCY_REPLAY_HEADER, String.valueOf(result.replayed()));
         return ResponseEntity.ok().headers(headers).body(result.data());

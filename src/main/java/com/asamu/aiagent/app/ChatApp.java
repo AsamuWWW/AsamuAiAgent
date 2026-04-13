@@ -1,6 +1,7 @@
 package com.asamu.aiagent.app;
 
 import com.asamu.aiagent.config.AgentProperties;
+import com.asamu.aiagent.dto.StructuredAnswer;
 import com.asamu.aiagent.llm.LlmResponse;
 import com.asamu.aiagent.llm.LlmService;
 import com.asamu.aiagent.memory.ConversationMemoryService;
@@ -12,6 +13,8 @@ import com.asamu.aiagent.tools.ToolCallRequest;
 import com.asamu.aiagent.tools.ToolExecutionLog;
 import com.asamu.aiagent.tools.ToolExecutionResult;
 import com.asamu.aiagent.tools.ToolRegistry;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,9 +22,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ChatApp {
+    private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{[\\s\\S]*}");
 
     private final ToolRegistry toolRegistry;
     private final LlmService llmService;
@@ -29,19 +35,22 @@ public class ChatApp {
     private final KnowledgeService knowledgeService;
     private final AppMetricsService metricsService;
     private final AgentProperties properties;
+    private final ObjectMapper objectMapper;
 
     public ChatApp(ToolRegistry toolRegistry,
                    LlmService llmService,
                    ConversationMemoryService memoryService,
                    KnowledgeService knowledgeService,
                    AppMetricsService metricsService,
-                   AgentProperties properties) {
+                   AgentProperties properties,
+                   ObjectMapper objectMapper) {
         this.toolRegistry = toolRegistry;
         this.llmService = llmService;
         this.memoryService = memoryService;
         this.knowledgeService = knowledgeService;
         this.metricsService = metricsService;
         this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     public String ensureSessionId(String sessionId) {
@@ -107,6 +116,40 @@ public class ChatApp {
         );
     }
 
+    public StructuredAnswer toStructuredAnswer(String userMessage,
+                                               String assistantReply) {
+        String json = extractJsonObject(assistantReply);
+        if (json != null) {
+            try {
+                JsonNode node = objectMapper.readTree(json);
+                String intent = node.path("intent").asText("");
+                String summary = node.path("summary").asText("");
+                boolean needsFollowUp = node.path("needsFollowUp").asBoolean(false);
+                List<String> keywords = new ArrayList<>();
+                JsonNode keywordNode = node.path("keywords");
+                if (keywordNode.isArray()) {
+                    for (JsonNode item : keywordNode) {
+                        String keyword = item.asText("");
+                        if (!keyword.isBlank()) {
+                            keywords.add(keyword);
+                        }
+                    }
+                }
+                if (!intent.isBlank() || !summary.isBlank() || !keywords.isEmpty()) {
+                    return new StructuredAnswer(
+                            intent.isBlank() ? "general" : intent,
+                            summary.isBlank() ? truncate(assistantReply, 120) : summary,
+                            needsFollowUp,
+                            keywords
+                    );
+                }
+            } catch (Exception ignored) {
+                // fallback below
+            }
+        }
+        return fallbackStructuredAnswer(userMessage, assistantReply);
+    }
+
     public List<Map<String, Object>> streamEvents(ChatTurnResult result) {
         List<Map<String, Object>> events = new ArrayList<>();
         events.add(event("step", Map.of("message", "接收请求", "sessionId", result.sessionId())));
@@ -140,5 +183,51 @@ public class ChatApp {
         map.put("type", type);
         map.put("payload", payload);
         return map;
+    }
+
+    private StructuredAnswer fallbackStructuredAnswer(String userMessage, String assistantReply) {
+        String input = userMessage == null ? "" : userMessage;
+        String normalized = input.toLowerCase();
+        String intent = (normalized.contains("plan")
+                || normalized.contains("schedule")
+                || normalized.contains("strategy")
+                || normalized.contains("步骤")
+                || normalized.contains("计划")
+                || normalized.contains("方案")) ? "planning" : "general";
+        boolean needsFollowUp = input.contains("?") || input.contains("？");
+        List<String> keywords = buildKeywords(input);
+        return new StructuredAnswer(intent, truncate(assistantReply, 120), needsFollowUp, keywords);
+    }
+
+    private List<String> buildKeywords(String input) {
+        if (input.isBlank()) {
+            return List.of();
+        }
+        String[] parts = input.replaceAll("[^\\p{L}\\p{N}\\s]", " ").trim().split("\\s+");
+        List<String> keywords = new ArrayList<>();
+        for (String part : parts) {
+            if (part.length() >= 2 && keywords.stream().noneMatch(part::equalsIgnoreCase)) {
+                keywords.add(part);
+            }
+            if (keywords.size() >= 5) {
+                break;
+            }
+        }
+        return keywords;
+    }
+
+    private String extractJsonObject(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = JSON_OBJECT_PATTERN.matcher(text);
+        return matcher.find() ? matcher.group() : null;
+    }
+
+    private String truncate(String text, int maxLen) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() <= maxLen ? text : text.substring(0, maxLen);
     }
 }

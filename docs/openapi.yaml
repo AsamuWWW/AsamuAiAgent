@@ -47,6 +47,18 @@ paths:
       responses:
         '200':
           description: SSE stream with step/tool/token/done/error events.
+  /chat/structured:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Chat response with structured fields (intent/summary/keywords).
+          headers:
+            X-Idempotent-Replay:
+              schema:
+                type: string
+                enum: ["true", "false"]
   /agent/start:
     post:
       parameters:

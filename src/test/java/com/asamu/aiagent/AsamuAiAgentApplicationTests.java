@@ -148,6 +148,40 @@ class AsamuAiAgentApplicationTests {
                 .andExpect(jsonPath("$.code").value(40901));
     }
 
+    @Test
+    void structuredChatShouldReturnStructuredFields() throws Exception {
+        String body = objectMapper.writeValueAsString(new ChatReq("u2", "", null, null, null, "user", "请给我一个学习计划"));
+        mockMvc.perform(post("/chat/structured")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "false"))
+                .andExpect(jsonPath("$.data.structured.intent").isNotEmpty())
+                .andExpect(jsonPath("$.data.structured.summary").isNotEmpty())
+                .andExpect(jsonPath("$.data.structured.needsFollowUp").isBoolean())
+                .andExpect(jsonPath("$.data.structured.keywords").isArray());
+    }
+
+    @Test
+    void structuredChatShouldReplayWithSameIdempotencyKey() throws Exception {
+        String body = objectMapper.writeValueAsString(new ChatReq("u3", "structured-session", null, null, null, "user", "总结一下今天任务"));
+        String key = "structured-key-1";
+
+        mockMvc.perform(post("/chat/structured")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "false"));
+
+        mockMvc.perform(post("/chat/structured")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "true"));
+    }
+
     private record ChatReq(String userId, String sessionId, String provider, String model, Double temperature, String role, String message) {}
 
     private record TaskRequest(String userId, String task) {}

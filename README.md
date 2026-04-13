@@ -4,6 +4,7 @@
 
 ## 当前能力
 - 同步聊天与 SSE 事件流（token/step/tool/done/error）
+- 结构化聊天输出（intent/summary/needsFollowUp/keywords）
 - LLM Provider 抽象与配置化路由（openai-compatible / local）
 - 工具系统（参数校验、权限控制、超时、重试、执行日志）
 - Agent 任务状态机（步骤状态、任务查询、等待用户、失败重试）
