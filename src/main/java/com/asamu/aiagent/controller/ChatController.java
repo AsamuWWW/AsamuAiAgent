@@ -1,6 +1,7 @@
 package com.asamu.aiagent.controller;
 
 import com.asamu.aiagent.app.ChatApp;
+import com.asamu.aiagent.app.ChatTurnResult;
 import com.asamu.aiagent.common.ApiResponse;
 import com.asamu.aiagent.dto.ChatRequest;
 import com.asamu.aiagent.dto.ChatResponse;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -27,28 +30,58 @@ public class ChatController {
 
     @PostMapping("/chat")
     public ApiResponse<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
-        String sessionId = chatApp.ensureSessionId(request.sessionId());
-        String reply = chatApp.chat(sessionId, request.message());
-        return ApiResponse.ok(new ChatResponse(sessionId, reply));
+        ChatTurnResult result = executeTurn(request);
+        return ApiResponse.ok(new ChatResponse(
+                result.userId(),
+                result.sessionId(),
+                result.provider(),
+                result.model(),
+                result.reply(),
+                result.toolLogs(),
+                result.citations()
+        ));
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@Valid @RequestBody ChatRequest request) {
-        String sessionId = chatApp.ensureSessionId(request.sessionId());
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
-        CompletableFuture.runAsync(() -> streamResponse(emitter, sessionId, request.message()));
+        CompletableFuture.runAsync(() -> streamResponse(emitter, request));
         return emitter;
     }
 
-    private void streamResponse(SseEmitter emitter, String sessionId, String message) {
+    private ChatTurnResult executeTurn(ChatRequest request) {
+        return chatApp.chat(
+                request.userId(),
+                request.sessionId(),
+                request.provider(),
+                request.model(),
+                request.temperature(),
+                request.role(),
+                request.message()
+        );
+    }
+
+    private void streamResponse(SseEmitter emitter, ChatRequest request) {
         try {
-            for (String chunk : chatApp.streamChunks(sessionId, message)) {
-                emitter.send(SseEmitter.event().name("message").data(chunk));
+            ChatTurnResult result = executeTurn(request);
+            List<Map<String, Object>> events = chatApp.streamEvents(result);
+            for (Map<String, Object> event : events) {
+                emitter.send(SseEmitter.event().name(String.valueOf(event.get("type"))).data(event.get("payload")));
             }
-            emitter.send(SseEmitter.event().name("done").data("done"));
             emitter.complete();
         } catch (IOException e) {
-            emitter.completeWithError(e);
+            sendErrorEvent(emitter, e.getMessage());
+        } catch (RuntimeException e) {
+            sendErrorEvent(emitter, e.getMessage());
+        }
+    }
+
+    private void sendErrorEvent(SseEmitter emitter, String message) {
+        try {
+            emitter.send(SseEmitter.event().name("error").data(Map.of("message", message)));
+            emitter.complete();
+        } catch (IOException ioException) {
+            emitter.completeWithError(ioException);
         }
     }
 }

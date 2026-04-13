@@ -32,19 +32,20 @@ class AsamuAiAgentApplicationTests {
 
     @Test
     void chatShouldReturnReply() throws Exception {
-        String body = objectMapper.writeValueAsString(new Request("", "你好"));
+        String body = objectMapper.writeValueAsString(new ChatReq("u1", "", null, null, null, "user", "你好"));
         mockMvc.perform(post("/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sessionId").isNotEmpty())
-                .andExpect(jsonPath("$.data.reply").isNotEmpty());
+                .andExpect(jsonPath("$.data.reply").isNotEmpty())
+                .andExpect(jsonPath("$.data.provider").isNotEmpty());
     }
 
     @Test
     void chatShouldKeepGivenSessionId() throws Exception {
         String sessionId = "session-fixed-id";
-        String body = objectMapper.writeValueAsString(new Request(sessionId, "继续对话"));
+        String body = objectMapper.writeValueAsString(new ChatReq("u1", sessionId, null, null, null, "user", "继续对话"));
         mockMvc.perform(post("/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -53,13 +54,25 @@ class AsamuAiAgentApplicationTests {
     }
 
     @Test
-    void agentShouldStartAndResume() throws Exception {
-        String startBody = objectMapper.writeValueAsString(new TaskRequest("整理技术调研结论"));
+    void toolShouldExecuteTimeCommand() throws Exception {
+        String body = objectMapper.writeValueAsString(new ChatReq("u1", "", null, null, null, "user", "/time"));
+        mockMvc.perform(post("/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.toolLogs").isArray())
+                .andExpect(jsonPath("$.data.reply").isNotEmpty());
+    }
+
+    @Test
+    void agentShouldStartAndResumeAndQuery() throws Exception {
+        String startBody = objectMapper.writeValueAsString(new TaskRequest("u1", "整理技术调研结论,形成执行计划"));
         String startResult = mockMvc.perform(post("/agent/start")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(startBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andExpect(jsonPath("$.data.steps").isArray())
                 .andReturn().getResponse().getContentAsString();
 
         String taskId = objectMapper.readTree(startResult).at("/data/taskId").asText();
@@ -70,9 +83,36 @@ class AsamuAiAgentApplicationTests {
                         .content(resumeBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taskId").value(taskId));
+
+        mockMvc.perform(get("/agent/{taskId}", taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.steps").isArray());
     }
 
-    private record Request(String sessionId, String message) {}
-    private record TaskRequest(String task) {}
+    @Test
+    void ragShouldIngestAndQuery() throws Exception {
+        String ingestBody = objectMapper.writeValueAsString(new IngestRequest("default", "doc1", "Spring Boot supports REST APIs and SSE."));
+        mockMvc.perform(post("/knowledge/documents")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ingestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").isNotEmpty());
+
+        String queryBody = objectMapper.writeValueAsString(new QueryRequest("default", "REST", 3));
+        mockMvc.perform(post("/knowledge/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(queryBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    private record ChatReq(String userId, String sessionId, String provider, String model, Double temperature, String role, String message) {}
+
+    private record TaskRequest(String userId, String task) {}
+
     private record ResumeRequest(String answer) {}
+
+    private record IngestRequest(String namespace, String title, String content) {}
+
+    private record QueryRequest(String namespace, String question, Integer topK) {}
 }

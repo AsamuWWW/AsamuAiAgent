@@ -2,3 +2,34 @@ server:
   port: 8123
   servlet:
     context-path: /api
+
+asamu:
+  ai:
+    model:
+      default-provider: openai-compatible
+      default-model: gpt-4o-mini
+      default-temperature: 0.2
+      providers:
+        openai-compatible:
+          model: gpt-4o-mini
+          temperature: 0.2
+          timeout-millis: 3000
+          retries: 1
+        local:
+          model: qwen2.5:7b
+          temperature: 0.3
+          timeout-millis: 5000
+          retries: 0
+    memory:
+      short-term-limit: 20
+      long-term-recall: 10
+      persistence-file: /tmp/asamu-ai-agent-memory.jsonl
+    security:
+      api-key: ""
+    tool:
+      default-role: user
+      file-read-base-path: /home/runner/work/AsamuAiAgent/AsamuAiAgent
+      whitelist:
+        - time.now
+        - http.get
+        - file.read
