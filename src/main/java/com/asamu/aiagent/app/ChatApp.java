@@ -3,18 +3,19 @@ package com.asamu.aiagent.app;
 import com.asamu.aiagent.tools.ToolRegistry;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Service
 public class ChatApp {
 
+    private static final int MAX_HISTORY_MESSAGES = 20;
+
     private final ToolRegistry toolRegistry;
-    private final Map<String, Deque<String>> memory = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrentLinkedDeque<String>> memory = new ConcurrentHashMap<>();
 
     public ChatApp(ToolRegistry toolRegistry) {
         this.toolRegistry = toolRegistry;
@@ -26,9 +27,9 @@ public class ChatApp {
 
     public String chat(String sessionId, String message) {
         String sid = ensureSessionId(sessionId);
-        Deque<String> messages = memory.computeIfAbsent(sid, k -> new ArrayDeque<>());
+        ConcurrentLinkedDeque<String> messages = memory.computeIfAbsent(sid, k -> new ConcurrentLinkedDeque<>());
         messages.addLast("user:" + message);
-        while (messages.size() > 20) {
+        while (messages.size() > MAX_HISTORY_MESSAGES) {
             messages.removeFirst();
         }
 

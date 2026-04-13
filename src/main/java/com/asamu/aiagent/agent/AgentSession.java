@@ -21,7 +21,7 @@ public class AgentSession {
         return taskId;
     }
 
-    public List<String> getTodos() {
+    public synchronized List<String> getTodos() {
         return List.copyOf(todos);
     }
 
@@ -41,7 +41,7 @@ public class AgentSession {
         this.latestMessage = latestMessage;
     }
 
-    public void completeStep(String stepText) {
+    public synchronized void completeStep(String stepText) {
         for (int i = 0; i < todos.size(); i++) {
             if (todos.get(i).contains("[ ]")) {
                 todos.set(i, todos.get(i).replace("[ ]", "[x]") + " -> " + stepText);

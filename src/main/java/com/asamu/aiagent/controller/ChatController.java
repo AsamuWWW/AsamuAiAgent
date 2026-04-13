@@ -12,9 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 public class ChatController {
+
+    private static final long SSE_TIMEOUT_MILLIS = 30_000L;
 
     private final ChatApp chatApp;
 
@@ -32,9 +35,14 @@ public class ChatController {
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@Valid @RequestBody ChatRequest request) {
         String sessionId = chatApp.ensureSessionId(request.sessionId());
-        SseEmitter emitter = new SseEmitter(30_000L);
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
+        CompletableFuture.runAsync(() -> streamResponse(emitter, sessionId, request.message()));
+        return emitter;
+    }
+
+    private void streamResponse(SseEmitter emitter, String sessionId, String message) {
         try {
-            for (String chunk : chatApp.streamChunks(sessionId, request.message())) {
+            for (String chunk : chatApp.streamChunks(sessionId, message)) {
                 emitter.send(SseEmitter.event().name("message").data(chunk));
             }
             emitter.send(SseEmitter.event().name("done").data("done"));
@@ -42,6 +50,5 @@ public class ChatController {
         } catch (IOException e) {
             emitter.completeWithError(e);
         }
-        return emitter;
     }
 }
