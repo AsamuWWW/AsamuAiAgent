@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: Asamu AI Agent API
+  version: 0.0.1-SNAPSHOT
+  description: Stable backend contract for chat, agent task orchestration, knowledge retrieval, and metrics.
+servers:
+  - url: /api
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional idempotency key for POST requests.
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          nullable: true
+paths:
+  /chat:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Chat response.
+          headers:
+            X-Idempotent-Replay:
+              schema:
+                type: string
+                enum: ["true", "false"]
+  /chat/stream:
+    post:
+      responses:
+        '200':
+          description: SSE stream with step/tool/token/done/error events.
+  /agent/start:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Start task.
+  /agent/{taskId}:
+    get:
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task detail.
+  /agent/{taskId}/resume:
+    post:
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Resume task.
+  /agent/{taskId}/retry:
+    post:
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Retry failed step.
+  /agent/{taskId}/wait:
+    post:
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: question
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Mark waiting for user.
+  /knowledge/documents:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Ingest document.
+  /knowledge/query:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Query citations.
+  /health:
+    get:
+      responses:
+        '200':
+          description: Service health.
+  /metrics:
+    get:
+      responses:
+        '200':
+          description: Runtime counters.

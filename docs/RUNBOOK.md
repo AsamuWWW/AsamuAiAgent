@@ -19,9 +19,17 @@ mvn spring-boot:run
 - `POST /knowledge/query`
 - `GET /metrics`
 
+## 幂等请求
+- 对关键 `POST` 接口可传请求头：`Idempotency-Key: <unique-key>`
+- 同 key + 同 payload：返回缓存结果，响应头 `X-Idempotent-Replay: true`
+- 同 key + 不同 payload：返回 `409`（错误码 `40901`）
+
 ## 安全
 - 通过 `asamu.ai.security.api-key` 启用 API Key 校验
 - 请求头：`X-API-Key: <value>`
+
+## OpenAPI
+- 稳定接口契约：`docs/openapi.yaml`
 
 ## Docker
 ```bash

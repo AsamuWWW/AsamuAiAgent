@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +38,7 @@ class AsamuAiAgentApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "false"))
                 .andExpect(jsonPath("$.data.sessionId").isNotEmpty())
                 .andExpect(jsonPath("$.data.reply").isNotEmpty())
                 .andExpect(jsonPath("$.data.provider").isNotEmpty());
@@ -104,6 +106,46 @@ class AsamuAiAgentApplicationTests {
                         .content(queryBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    void chatShouldReplayWhenIdempotencyKeyMatches() throws Exception {
+        String body = objectMapper.writeValueAsString(new ChatReq("u1", "idempotent-session", null, null, null, "user", "同一请求"));
+        String key = "chat-key-1";
+
+        mockMvc.perform(post("/chat")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "false"));
+
+        mockMvc.perform(post("/chat")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Idempotent-Replay", "true"));
+    }
+
+    @Test
+    void chatShouldRejectIdempotencyKeyReuseWithDifferentPayload() throws Exception {
+        String key = "chat-key-2";
+        String body1 = objectMapper.writeValueAsString(new ChatReq("u1", "idempotent-session-2", null, null, null, "user", "第一次"));
+        String body2 = objectMapper.writeValueAsString(new ChatReq("u1", "idempotent-session-2", null, null, null, "user", "第二次"));
+
+        mockMvc.perform(post("/chat")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/chat")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body2))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40901));
     }
 
     private record ChatReq(String userId, String sessionId, String provider, String model, Double temperature, String role, String message) {}

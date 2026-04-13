@@ -10,6 +10,7 @@
 - 短期 + 长期记忆（按 user/session 隔离）
 - 基础 RAG（文档入库、分块检索、引用返回）
 - 统一错误码响应、API Key 鉴权、基础指标接口
+- POST 接口幂等支持（`Idempotency-Key` + `X-Idempotent-Replay`）
 - Dockerfile、CI 工作流、运行手册
 
 ## 快速开始
@@ -35,3 +36,4 @@ mvn spring-boot:run
 - [项目起始文件](docs/PROJECT_STARTER.md)
 - [复现能力矩阵](docs/CAPABILITY_MATRIX.md)
 - [运行手册](docs/RUNBOOK.md)
+- [OpenAPI 契约](docs/openapi.yaml)

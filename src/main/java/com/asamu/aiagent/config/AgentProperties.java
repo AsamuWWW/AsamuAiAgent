@@ -16,6 +16,7 @@ public class AgentProperties {
     private final Memory memory = new Memory();
     private final Security security = new Security();
     private final Tool tool = new Tool();
+    private final Api api = new Api();
 
     public Model getModel() {
         return model;
@@ -31,6 +32,10 @@ public class AgentProperties {
 
     public Tool getTool() {
         return tool;
+    }
+
+    public Api getApi() {
+        return api;
     }
 
     public static class Model {
@@ -176,6 +181,18 @@ public class AgentProperties {
 
         public void setWhitelist(List<String> whitelist) {
             this.whitelist = whitelist;
+        }
+    }
+
+    public static class Api {
+        private long idempotencyTtlSeconds = 600;
+
+        public long getIdempotencyTtlSeconds() {
+            return idempotencyTtlSeconds;
+        }
+
+        public void setIdempotencyTtlSeconds(long idempotencyTtlSeconds) {
+            this.idempotencyTtlSeconds = idempotencyTtlSeconds;
         }
     }
 }

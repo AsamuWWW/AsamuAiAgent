@@ -33,3 +33,5 @@ asamu:
         - time.now
         - http.get
         - file.read
+    api:
+      idempotency-ttl-seconds: 600

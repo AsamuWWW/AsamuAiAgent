@@ -5,10 +5,15 @@ import com.asamu.aiagent.app.ChatTurnResult;
 import com.asamu.aiagent.common.ApiResponse;
 import com.asamu.aiagent.dto.ChatRequest;
 import com.asamu.aiagent.dto.ChatResponse;
+import com.asamu.aiagent.idempotency.IdempotencyResult;
+import com.asamu.aiagent.idempotency.IdempotencyService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -21,25 +26,29 @@ import java.util.concurrent.CompletableFuture;
 public class ChatController {
 
     private static final long SSE_TIMEOUT_MILLIS = 30_000L;
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final String IDEMPOTENCY_REPLAY_HEADER = "X-Idempotent-Replay";
 
     private final ChatApp chatApp;
+    private final IdempotencyService idempotencyService;
 
-    public ChatController(ChatApp chatApp) {
+    public ChatController(ChatApp chatApp, IdempotencyService idempotencyService) {
         this.chatApp = chatApp;
+        this.idempotencyService = idempotencyService;
     }
 
     @PostMapping("/chat")
-    public ApiResponse<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
-        ChatTurnResult result = executeTurn(request);
-        return ApiResponse.ok(new ChatResponse(
-                result.userId(),
-                result.sessionId(),
-                result.provider(),
-                result.model(),
-                result.reply(),
-                result.toolLogs(),
-                result.citations()
-        ));
+    public ResponseEntity<ApiResponse<ChatResponse>> chat(
+            @Valid @RequestBody ChatRequest request,
+            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey
+    ) {
+        IdempotencyResult<ApiResponse<ChatResponse>> result = idempotencyService.execute(
+                "POST:/chat",
+                idempotencyKey,
+                request,
+                () -> ApiResponse.ok(toResponse(executeTurn(request)))
+        );
+        return withIdempotencyHeaders(result);
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -59,6 +68,24 @@ public class ChatController {
                 request.role(),
                 request.message()
         );
+    }
+
+    private ChatResponse toResponse(ChatTurnResult result) {
+        return new ChatResponse(
+                result.userId(),
+                result.sessionId(),
+                result.provider(),
+                result.model(),
+                result.reply(),
+                result.toolLogs(),
+                result.citations()
+        );
+    }
+
+    private ResponseEntity<ApiResponse<ChatResponse>> withIdempotencyHeaders(IdempotencyResult<ApiResponse<ChatResponse>> result) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(IDEMPOTENCY_REPLAY_HEADER, String.valueOf(result.replayed()));
+        return ResponseEntity.ok().headers(headers).body(result.data());
     }
 
     private void streamResponse(SseEmitter emitter, ChatRequest request) {
